@@ -5,8 +5,9 @@ const DOC_ID = 'YOUR_GOOGLE_DOC_ID_HERE';
 // ── Entry point ───────────────────────────────────────────────────────────────
 function doPost(e) {
   try {
+    // Body is sent as text/plain from the webapp (required for no-cors mode)
     const payload = JSON.parse(e.postData.contents);
-    appendStandup(payload.date, payload.slackText, payload.projects);
+    appendStandup(payload.date, payload.syncUps || [], payload.projects || []);
     return ContentService
       .createTextOutput(JSON.stringify({ status: 'ok' }))
       .setMimeType(ContentService.MimeType.JSON);
@@ -18,35 +19,47 @@ function doPost(e) {
 }
 
 // ── Append standup entry to the Google Doc ────────────────────────────────────
-function appendStandup(isoDate, slackText, projects) {
+function appendStandup(isoDate, syncUps, projects) {
   const doc = DocumentApp.openById(DOC_ID);
   const body = doc.getBody();
-
   const label = formatDateLabel(isoDate);
-  const divider = '────────────────────────────────';
 
-  // Top divider with date
-  body.appendParagraph('── ' + label + ' ' + divider.slice(label.length + 4));
-  body.appendParagraph('');
+  // Top rule with date
+  body.appendParagraph('── ' + label + ' ──────────────────────────────────');
 
-  // Projects and tasks
-  projects.forEach(function(project) {
-    if (!project.tasks.length && !project.name.trim()) return;
-
-    const projPara = body.appendParagraph(project.name || 'Untitled Project');
-    projPara.setBold(true);
-
-    project.tasks.forEach(function(task) {
-      const text = (task.text || '').trim() || '(empty task)';
-      const line = task.done ? '- ~' + text + '~' : '- ' + text;
-      body.appendParagraph(line);
-    });
-
+  // Sync ups
+  if (syncUps.length) {
     body.appendParagraph('');
+    const syncHeader = body.appendParagraph('Sync ups');
+    syncHeader.setBold(true);
+    syncUps.forEach(function(s) {
+      if (s.trim()) body.appendParagraph('• ' + s.trim());
+    });
+  }
+
+  // Tasks
+  const taskProjects = projects.filter(function(p) {
+    return p.tasks.length || p.name.trim();
   });
 
-  // Bottom divider
-  body.appendParagraph(divider);
+  if (taskProjects.length) {
+    body.appendParagraph('');
+    const tasksHeader = body.appendParagraph('Tasks');
+    tasksHeader.setBold(true);
+
+    taskProjects.forEach(function(project) {
+      body.appendParagraph('');
+      const projPara = body.appendParagraph(project.name || 'Untitled Project');
+      projPara.setBold(true);
+      project.tasks.forEach(function(task) {
+        const text = (task.text || '').trim() || '(empty task)';
+        body.appendParagraph(task.done ? '• ~' + text + '~' : '• ' + text);
+      });
+    });
+  }
+
+  body.appendParagraph('');
+  body.appendParagraph('────────────────────────────────────────');
   body.appendParagraph('');
 
   doc.saveAndClose();
@@ -54,13 +67,8 @@ function appendStandup(isoDate, slackText, projects) {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function formatDateLabel(isoDate) {
-  // isoDate: "2026-06-02" → "2 Jun 2026"
   const parts = isoDate.split('-');
-  const d = new Date(
-    parseInt(parts[0]),
-    parseInt(parts[1]) - 1,
-    parseInt(parts[2])
-  );
+  const d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
   const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   return d.getDate() + ' ' + months[d.getMonth()] + ' ' + d.getFullYear();
 }

@@ -821,10 +821,12 @@ document.getElementById('btnCopy').addEventListener('click', async () => {
 
 async function logToGoogleDocs(url, data, slackText) {
   try {
+    // Content-Type must be text/plain for no-cors mode to pass the body through.
+    // Apps Script parses it as JSON on the other side.
     await fetch(url, {
       method: 'POST',
       mode: 'no-cors',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify({
         date: formatDateISO(new Date()),
         slackText,
