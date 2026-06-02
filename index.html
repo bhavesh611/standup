@@ -1,0 +1,801 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Daily Standup</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0f0f11;
+    --surface: #1a1a1f;
+    --surface2: #242429;
+    --border: #2e2e36;
+    --text: #e8e8ee;
+    --text-muted: #6b6b7a;
+    --accent: #7c6af7;
+    --accent-hover: #9585ff;
+    --danger: #e05c5c;
+    --done-color: #6b6b7a;
+    --radius: 10px;
+    --radius-sm: 6px;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    min-height: 100vh;
+    padding: 32px 16px 64px;
+  }
+
+  .app {
+    max-width: 680px;
+    margin: 0 auto;
+  }
+
+  /* Header */
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 28px;
+    gap: 12px;
+  }
+
+  .header-left h1 {
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: -0.3px;
+  }
+
+  .header-left .date {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-top: 2px;
+  }
+
+  .header-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  /* Buttons */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 14px;
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    border: none;
+    transition: background 0.15s, opacity 0.15s;
+    white-space: nowrap;
+  }
+
+  .btn-primary {
+    background: var(--accent);
+    color: #fff;
+  }
+  .btn-primary:hover { background: var(--accent-hover); }
+
+  .btn-ghost {
+    background: var(--surface2);
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+  .btn-ghost:hover { background: var(--border); }
+
+  .btn-danger-ghost {
+    background: transparent;
+    color: var(--danger);
+    border: 1px solid transparent;
+  }
+  .btn-danger-ghost:hover { background: rgba(224,92,92,0.1); border-color: var(--danger); }
+
+  /* Projects */
+  .projects { display: flex; flex-direction: column; gap: 12px; }
+
+  .project-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    transition: border-color 0.15s;
+  }
+  .project-card.drag-over { border-color: var(--accent); }
+  .project-card.dragging { opacity: 0.4; }
+
+  .project-header {
+    display: flex;
+    align-items: center;
+    padding: 10px 12px;
+    gap: 8px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface2);
+  }
+
+  .drag-handle {
+    color: var(--text-muted);
+    cursor: grab;
+    padding: 2px 4px;
+    font-size: 16px;
+    user-select: none;
+    flex-shrink: 0;
+  }
+  .drag-handle:active { cursor: grabbing; }
+
+  .project-name-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: var(--text);
+    font-size: 14px;
+    font-weight: 600;
+    outline: none;
+    min-width: 0;
+  }
+  .project-name-input::placeholder { color: var(--text-muted); }
+
+  .btn-icon {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.15s, background 0.15s;
+    flex-shrink: 0;
+  }
+  .btn-icon:hover { color: var(--danger); background: rgba(224,92,92,0.1); }
+
+  /* Tasks */
+  .tasks { padding: 6px 0; }
+
+  .task-row {
+    display: flex;
+    align-items: center;
+    padding: 5px 12px;
+    gap: 8px;
+    transition: background 0.1s;
+  }
+  .task-row:hover { background: var(--surface2); }
+
+  .task-checkbox {
+    width: 16px;
+    height: 16px;
+    border: 1.5px solid var(--border);
+    border-radius: 4px;
+    cursor: pointer;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: border-color 0.15s, background 0.15s;
+    background: transparent;
+  }
+  .task-checkbox.checked {
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+  .task-checkbox.checked::after {
+    content: '';
+    width: 8px;
+    height: 5px;
+    border-left: 1.5px solid #fff;
+    border-bottom: 1.5px solid #fff;
+    transform: rotate(-45deg) translateY(-1px);
+  }
+
+  .task-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: var(--text);
+    font-size: 13.5px;
+    outline: none;
+    min-width: 0;
+    transition: color 0.15s;
+  }
+  .task-input.done {
+    color: var(--done-color);
+    text-decoration: line-through;
+    text-decoration-color: var(--done-color);
+  }
+  .task-input::placeholder { color: var(--text-muted); }
+
+  .task-delete {
+    opacity: 0;
+    transition: opacity 0.15s;
+  }
+  .task-row:hover .task-delete { opacity: 1; }
+
+  .add-task-row {
+    padding: 5px 12px 10px;
+  }
+
+  .add-task-btn {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 0;
+    transition: color 0.15s;
+  }
+  .add-task-btn:hover { color: var(--accent); }
+
+  /* Add project */
+  .add-project-wrap {
+    margin-top: 8px;
+  }
+
+  /* Toast */
+  .toast {
+    position: fixed;
+    bottom: 28px;
+    left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 10px 18px;
+    font-size: 13px;
+    color: var(--text);
+    transition: transform 0.25s cubic-bezier(0.34,1.56,0.64,1);
+    z-index: 100;
+    white-space: nowrap;
+    pointer-events: none;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+  .toast.success { border-color: var(--accent); color: var(--accent-hover); }
+  .toast.error { border-color: var(--danger); color: var(--danger); }
+
+  /* Modal */
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 200;
+    padding: 16px;
+  }
+  .modal-backdrop.hidden { display: none; }
+
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    width: 100%;
+    max-width: 480px;
+  }
+
+  .modal h2 {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+
+  .modal p {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-bottom: 16px;
+    line-height: 1.6;
+  }
+
+  .modal input[type="url"],
+  .modal input[type="text"] {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    font-size: 13px;
+    padding: 9px 12px;
+    outline: none;
+    margin-bottom: 16px;
+    transition: border-color 0.15s;
+  }
+  .modal input:focus { border-color: var(--accent); }
+
+  .modal-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+  }
+
+  /* Empty state */
+  .empty-state {
+    text-align: center;
+    padding: 40px 16px;
+    color: var(--text-muted);
+    font-size: 13px;
+  }
+
+  /* Settings icon in header */
+  .settings-btn {
+    color: var(--text-muted);
+  }
+  .settings-btn:hover { color: var(--text); }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <div class="header-left">
+      <h1>Daily Standup</h1>
+      <div class="date" id="headerDate"></div>
+    </div>
+    <div class="header-actions">
+      <button class="btn btn-ghost" id="btnNewDay" title="Clear tasks, keep projects">New Day</button>
+      <button class="btn btn-ghost btn-icon settings-btn" id="btnSettings" title="Settings" style="padding:7px 10px;">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+          <circle cx="8" cy="8" r="2.5"/>
+          <path d="M8 1v1.5M8 13.5V15M1 8h1.5M13.5 8H15M3.05 3.05l1.06 1.06M11.89 11.89l1.06 1.06M3.05 12.95l1.06-1.06M11.89 4.11l1.06-1.06"/>
+        </svg>
+      </button>
+      <button class="btn btn-primary" id="btnCopy">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+          <rect x="5" y="5" width="9" height="9" rx="2"/>
+          <path d="M11 5V3a2 2 0 0 0-2-2H3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/>
+        </svg>
+        Copy for Slack
+      </button>
+    </div>
+  </div>
+
+  <div class="projects" id="projectsList"></div>
+
+  <div class="add-project-wrap" id="addProjectWrap">
+    <button class="btn btn-ghost" id="btnAddProject" style="width:100%; justify-content:center; margin-top:4px;">
+      + Add Project
+    </button>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- Apps Script URL modal -->
+<div class="modal-backdrop hidden" id="modalAppsScript">
+  <div class="modal">
+    <h2>Connect Google Docs Logging</h2>
+    <p>Paste your deployed Google Apps Script Web App URL below to enable automatic logging of each standup to your Google Doc.</p>
+    <input type="url" id="appsScriptUrlInput" placeholder="https://script.google.com/macros/s/.../exec" />
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="btnSkipUrl">Skip for now</button>
+      <button class="btn btn-primary" id="btnSaveUrl">Save URL</button>
+    </div>
+  </div>
+</div>
+
+<!-- Settings modal -->
+<div class="modal-backdrop hidden" id="modalSettings">
+  <div class="modal">
+    <h2>Settings</h2>
+    <p>Google Apps Script URL for logging standups to Google Docs.</p>
+    <input type="url" id="settingsUrlInput" placeholder="https://script.google.com/macros/s/.../exec" />
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="btnCloseSettings">Cancel</button>
+      <button class="btn btn-primary" id="btnSaveSettings">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- New Day confirm modal -->
+<div class="modal-backdrop hidden" id="modalNewDay">
+  <div class="modal">
+    <h2>Start a New Day?</h2>
+    <p>This will clear all tasks but keep your project names. This cannot be undone.</p>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="btnCancelNewDay">Cancel</button>
+      <button class="btn btn-danger-ghost" id="btnConfirmNewDay">Clear Tasks</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const STORAGE_KEY = 'standup_v2';
+const URL_KEY = 'standup_apps_script_url';
+
+function genId() {
+  return Math.random().toString(36).slice(2, 9);
+}
+
+function loadData() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return { projects: [] };
+}
+
+function saveData(data) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+}
+
+function getAppsScriptUrl() {
+  return localStorage.getItem(URL_KEY) || '';
+}
+
+function saveAppsScriptUrl(url) {
+  localStorage.setItem(URL_KEY, url.trim());
+}
+
+// ── Date formatting ──────────────────────────────────────────────────────────
+
+function formatDateLong(d) {
+  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+function formatDateISO(d) {
+  return d.toISOString().slice(0, 10);
+}
+
+// ── Slack text builder ───────────────────────────────────────────────────────
+
+function buildSlackText(data) {
+  const today = new Date();
+  const lines = [`*Daily Standup — ${formatDateLong(today)}*`];
+  data.projects.forEach(p => {
+    if (!p.tasks.length && !p.name.trim()) return;
+    lines.push('');
+    lines.push(`*${p.name || 'Untitled Project'}*`);
+    p.tasks.forEach(t => {
+      const text = t.text.trim() || '(empty task)';
+      lines.push(t.done ? `- ~${text}~` : `- ${text}`);
+    });
+  });
+  return lines.join('\n');
+}
+
+// ── Render ───────────────────────────────────────────────────────────────────
+
+let dragSrcIndex = null;
+
+function render() {
+  const data = loadData();
+  const list = document.getElementById('projectsList');
+  list.innerHTML = '';
+
+  if (!data.projects.length) {
+    list.innerHTML = '<div class="empty-state">No projects yet. Add one below.</div>';
+  }
+
+  data.projects.forEach((project, pIdx) => {
+    const card = document.createElement('div');
+    card.className = 'project-card';
+    card.draggable = true;
+    card.dataset.idx = pIdx;
+
+    card.addEventListener('dragstart', e => {
+      dragSrcIndex = pIdx;
+      setTimeout(() => card.classList.add('dragging'), 0);
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    card.addEventListener('dragend', () => {
+      card.classList.remove('dragging');
+      document.querySelectorAll('.project-card').forEach(c => c.classList.remove('drag-over'));
+    });
+    card.addEventListener('dragover', e => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      document.querySelectorAll('.project-card').forEach(c => c.classList.remove('drag-over'));
+      card.classList.add('drag-over');
+    });
+    card.addEventListener('drop', e => {
+      e.preventDefault();
+      if (dragSrcIndex === null || dragSrcIndex === pIdx) return;
+      const d = loadData();
+      const [moved] = d.projects.splice(dragSrcIndex, 1);
+      d.projects.splice(pIdx, 0, moved);
+      saveData(d);
+      render();
+    });
+
+    // Header
+    const header = document.createElement('div');
+    header.className = 'project-header';
+
+    const handle = document.createElement('span');
+    handle.className = 'drag-handle';
+    handle.textContent = '⠿';
+    handle.addEventListener('mousedown', e => e.stopPropagation());
+
+    const nameInput = document.createElement('input');
+    nameInput.className = 'project-name-input';
+    nameInput.type = 'text';
+    nameInput.value = project.name;
+    nameInput.placeholder = 'Project name…';
+    nameInput.addEventListener('input', () => {
+      const d = loadData();
+      d.projects[pIdx].name = nameInput.value;
+      saveData(d);
+    });
+
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'btn-icon';
+    deleteBtn.title = 'Delete project';
+    deleteBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4h12M5 4V2h6v2M6 7v5M10 7v5M3 4l1 9a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1l1-9"/></svg>`;
+    deleteBtn.addEventListener('click', () => {
+      const d = loadData();
+      d.projects.splice(pIdx, 1);
+      saveData(d);
+      render();
+    });
+
+    header.append(handle, nameInput, deleteBtn);
+
+    // Tasks
+    const tasksDiv = document.createElement('div');
+    tasksDiv.className = 'tasks';
+
+    project.tasks.forEach((task, tIdx) => {
+      const row = document.createElement('div');
+      row.className = 'task-row';
+
+      const checkbox = document.createElement('div');
+      checkbox.className = 'task-checkbox' + (task.done ? ' checked' : '');
+      checkbox.addEventListener('click', () => {
+        const d = loadData();
+        d.projects[pIdx].tasks[tIdx].done = !d.projects[pIdx].tasks[tIdx].done;
+        saveData(d);
+        render();
+      });
+
+      const input = document.createElement('input');
+      input.className = 'task-input' + (task.done ? ' done' : '');
+      input.type = 'text';
+      input.value = task.text;
+      input.placeholder = 'Task…';
+
+      input.addEventListener('input', () => {
+        const d = loadData();
+        d.projects[pIdx].tasks[tIdx].text = input.value;
+        saveData(d);
+      });
+
+      input.addEventListener('keydown', e => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          const d = loadData();
+          const newTask = { id: genId(), text: '', done: false };
+          d.projects[pIdx].tasks.splice(tIdx + 1, 0, newTask);
+          saveData(d);
+          render();
+          // Focus the new task input
+          setTimeout(() => {
+            const rows = document.querySelectorAll(`[data-project="${pIdx}"] .task-input`);
+            if (rows[tIdx + 1]) rows[tIdx + 1].focus();
+          }, 0);
+        } else if (e.key === 'Backspace' && input.value === '') {
+          e.preventDefault();
+          const d = loadData();
+          if (d.projects[pIdx].tasks.length <= 1) return;
+          d.projects[pIdx].tasks.splice(tIdx, 1);
+          saveData(d);
+          render();
+        }
+      });
+
+      const delBtn = document.createElement('button');
+      delBtn.className = 'btn-icon task-delete';
+      delBtn.title = 'Delete task';
+      delBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 2l12 12M14 2L2 14"/></svg>`;
+      delBtn.addEventListener('click', () => {
+        const d = loadData();
+        d.projects[pIdx].tasks.splice(tIdx, 1);
+        saveData(d);
+        render();
+      });
+
+      row.append(checkbox, input, delBtn);
+      tasksDiv.appendChild(row);
+    });
+
+    // Tag for focusing
+    tasksDiv.dataset.project = pIdx;
+    card.querySelector && (card.dataset.project = pIdx);
+
+    // Add task button
+    const addRow = document.createElement('div');
+    addRow.className = 'add-task-row';
+    const addBtn = document.createElement('button');
+    addBtn.className = 'add-task-btn';
+    addBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 2v12M2 8h12"/></svg> Add task`;
+    addBtn.addEventListener('click', () => {
+      const d = loadData();
+      d.projects[pIdx].tasks.push({ id: genId(), text: '', done: false });
+      saveData(d);
+      render();
+      setTimeout(() => {
+        const allRows = document.querySelectorAll(`[data-project="${pIdx}"] .task-input`);
+        if (allRows.length) allRows[allRows.length - 1].focus();
+      }, 0);
+    });
+    addRow.appendChild(addBtn);
+
+    card.dataset.project = pIdx;
+    tasksDiv.dataset.project = pIdx;
+
+    card.append(header, tasksDiv, addRow);
+    list.appendChild(card);
+  });
+}
+
+// ── Toast ────────────────────────────────────────────────────────────────────
+
+let toastTimer = null;
+function showToast(msg, type = '') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast show' + (type ? ' ' + type : '');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.className = 'toast'; }, 2800);
+}
+
+// ── Copy for Slack ───────────────────────────────────────────────────────────
+
+document.getElementById('btnCopy').addEventListener('click', async () => {
+  const data = loadData();
+  const slackText = buildSlackText(data);
+
+  try {
+    await navigator.clipboard.writeText(slackText);
+    showToast('Copied to clipboard!', 'success');
+  } catch {
+    showToast('Copy failed — check browser permissions', 'error');
+    return;
+  }
+
+  const url = getAppsScriptUrl();
+  if (!url) {
+    showModal('modalAppsScript');
+    return;
+  }
+
+  logToGoogleDocs(url, data, slackText);
+});
+
+async function logToGoogleDocs(url, data, slackText) {
+  try {
+    await fetch(url, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        date: formatDateISO(new Date()),
+        slackText,
+        projects: data.projects,
+      }),
+    });
+    // no-cors means we can't read response, assume ok
+    showToast('Logged to Google Docs ✓', 'success');
+  } catch (err) {
+    showToast('Google Docs log failed', 'error');
+    console.error(err);
+  }
+}
+
+// ── Modals ───────────────────────────────────────────────────────────────────
+
+function showModal(id) {
+  document.getElementById(id).classList.remove('hidden');
+}
+function hideModal(id) {
+  document.getElementById(id).classList.add('hidden');
+}
+
+// Apps Script first-run modal
+document.getElementById('btnSkipUrl').addEventListener('click', () => hideModal('modalAppsScript'));
+document.getElementById('btnSaveUrl').addEventListener('click', () => {
+  const val = document.getElementById('appsScriptUrlInput').value.trim();
+  if (val) {
+    saveAppsScriptUrl(val);
+    showToast('URL saved!', 'success');
+  }
+  hideModal('modalAppsScript');
+});
+
+// Settings modal
+document.getElementById('btnSettings').addEventListener('click', () => {
+  document.getElementById('settingsUrlInput').value = getAppsScriptUrl();
+  showModal('modalSettings');
+});
+document.getElementById('btnCloseSettings').addEventListener('click', () => hideModal('modalSettings'));
+document.getElementById('btnSaveSettings').addEventListener('click', () => {
+  const val = document.getElementById('settingsUrlInput').value.trim();
+  saveAppsScriptUrl(val);
+  showToast('Settings saved!', 'success');
+  hideModal('modalSettings');
+});
+
+// New Day modal
+document.getElementById('btnNewDay').addEventListener('click', () => showModal('modalNewDay'));
+document.getElementById('btnCancelNewDay').addEventListener('click', () => hideModal('modalNewDay'));
+document.getElementById('btnConfirmNewDay').addEventListener('click', () => {
+  const d = loadData();
+  d.projects.forEach(p => { p.tasks = []; });
+  saveData(d);
+  hideModal('modalNewDay');
+  render();
+  showToast('New day started!');
+});
+
+// Close modals on backdrop click
+['modalAppsScript', 'modalSettings', 'modalNewDay'].forEach(id => {
+  document.getElementById(id).addEventListener('click', e => {
+    if (e.target === e.currentTarget) hideModal(id);
+  });
+});
+
+// ── Add Project ──────────────────────────────────────────────────────────────
+
+document.getElementById('btnAddProject').addEventListener('click', () => {
+  const d = loadData();
+  d.projects.push({ id: genId(), name: '', tasks: [] });
+  saveData(d);
+  render();
+  setTimeout(() => {
+    const inputs = document.querySelectorAll('.project-name-input');
+    if (inputs.length) inputs[inputs.length - 1].focus();
+  }, 0);
+});
+
+// ── First-run: prompt for URL if never set ───────────────────────────────────
+
+function maybePromptForUrl() {
+  if (!getAppsScriptUrl() && !localStorage.getItem('standup_url_prompted')) {
+    localStorage.setItem('standup_url_prompted', '1');
+    // Only prompt on first ever load, not on every reload when skipped
+    // (tracked by key existence, user can re-set via settings)
+  }
+}
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+
+document.getElementById('headerDate').textContent = formatDateLong(new Date());
+
+// Seed with example data on first load
+if (!localStorage.getItem(STORAGE_KEY)) {
+  saveData({
+    projects: [
+      {
+        id: genId(),
+        name: 'Design System',
+        tasks: [
+          { id: genId(), text: 'Review token updates', done: false },
+          { id: genId(), text: 'Update component library', done: true },
+        ],
+      },
+      {
+        id: genId(),
+        name: 'Product',
+        tasks: [
+          { id: genId(), text: 'Kickoff sync at 2pm', done: false },
+        ],
+      },
+    ],
+  });
+}
+
+render();
+</script>
+</body>
+</html>
