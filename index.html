@@ -586,6 +586,14 @@
     </div>
   </div>
 
+  <!-- Tasks -->
+  <div class="section-wrap">
+    <div class="projects" id="projectsList"></div>
+    <button class="btn btn-ghost" id="btnAddProject" style="width:100%; justify-content:center; margin-top:8px;">
+      + Add Project
+    </button>
+  </div>
+
   <!-- Sync ups -->
   <div class="section-wrap">
     <div class="syncup-card">
@@ -600,14 +608,6 @@
         </button>
       </div>
     </div>
-  </div>
-
-  <!-- Tasks -->
-  <div class="section-wrap">
-    <div class="projects" id="projectsList"></div>
-    <button class="btn btn-ghost" id="btnAddProject" style="width:100%; justify-content:center; margin-top:8px;">
-      + Add Project
-    </button>
   </div>
 </div>
 
@@ -734,14 +734,8 @@ function formatDateISO(d) {
 function buildSlackText(data) {
   const lines = [];
 
-  if (data.syncUps && data.syncUps.length) {
-    lines.push('*Sync ups*');
-    data.syncUps.forEach(s => { if (s.trim()) lines.push('• ' + s.trim()); });
-  }
-
   const taskProjects = data.projects.filter(p => p.tasks.length || p.name.trim());
   if (taskProjects.length) {
-    if (lines.length) lines.push('');
     lines.push('*Tasks*');
     taskProjects.forEach(p => {
       lines.push('');
@@ -751,6 +745,12 @@ function buildSlackText(data) {
         lines.push(t.done ? '• ~' + text + '~' : '• ' + text);
       });
     });
+  }
+
+  if (data.syncUps && data.syncUps.length) {
+    if (lines.length) lines.push('');
+    lines.push('*Sync ups*');
+    data.syncUps.forEach(s => { if (s.trim()) lines.push('• ' + s.trim()); });
   }
 
   return lines.join('\n');
@@ -763,17 +763,7 @@ function escapeHtml(str) {
 }
 
 function buildSlackHTML(data) {
-  // Slack's composer accepts pasted HTML and renders:
-  //   <strong> → bold, <s> → strikethrough, <br> → line break, • → bullet
   let parts = [];
-
-  if (data.syncUps && data.syncUps.length) {
-    let block = '<strong>Sync ups</strong>';
-    data.syncUps.forEach(s => {
-      if (s.trim()) block += '<br>• ' + escapeHtml(s.trim());
-    });
-    parts.push(block);
-  }
 
   const taskProjects = data.projects.filter(p => p.tasks.length || p.name.trim());
   if (taskProjects.length) {
@@ -784,6 +774,14 @@ function buildSlackHTML(data) {
         const text = escapeHtml(t.text.trim() || '(empty task)');
         block += '<br>• ' + (t.done ? '<s>' + text + '</s>' : text);
       });
+    });
+    parts.push(block);
+  }
+
+  if (data.syncUps && data.syncUps.length) {
+    let block = '<strong>Sync ups</strong>';
+    data.syncUps.forEach(s => {
+      if (s.trim()) block += '<br>• ' + escapeHtml(s.trim());
     });
     parts.push(block);
   }
