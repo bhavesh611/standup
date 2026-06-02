@@ -734,15 +734,11 @@ function formatDateISO(d) {
 function buildSlackText(data) {
   const lines = [];
 
-  // Sync ups section
   if (data.syncUps && data.syncUps.length) {
     lines.push('*Sync ups*');
-    data.syncUps.forEach(s => {
-      if (s.trim()) lines.push('• ' + s.trim());
-    });
+    data.syncUps.forEach(s => { if (s.trim()) lines.push('• ' + s.trim()); });
   }
 
-  // Tasks section
   const taskProjects = data.projects.filter(p => p.tasks.length || p.name.trim());
   if (taskProjects.length) {
     if (lines.length) lines.push('');
@@ -758,6 +754,63 @@ function buildSlackText(data) {
   }
 
   return lines.join('\n');
+}
+
+// ── Slack HTML builder (for rich paste into Slack composer) ──────────────────
+
+function escapeHtml(str) {
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function buildSlackHTML(data) {
+  // Slack's composer accepts pasted HTML and renders:
+  //   <strong> → bold, <s> → strikethrough, <br> → line break, • → bullet
+  let parts = [];
+
+  if (data.syncUps && data.syncUps.length) {
+    let block = '<strong>Sync ups</strong>';
+    data.syncUps.forEach(s => {
+      if (s.trim()) block += '<br>• ' + escapeHtml(s.trim());
+    });
+    parts.push(block);
+  }
+
+  const taskProjects = data.projects.filter(p => p.tasks.length || p.name.trim());
+  if (taskProjects.length) {
+    let block = '<strong>Tasks</strong>';
+    taskProjects.forEach(p => {
+      block += '<br><br><strong>' + escapeHtml(p.name || 'Untitled Project') + '</strong>';
+      p.tasks.forEach(t => {
+        const text = escapeHtml(t.text.trim() || '(empty task)');
+        block += '<br>• ' + (t.done ? '<s>' + text + '</s>' : text);
+      });
+    });
+    parts.push(block);
+  }
+
+  return parts.join('<br><br>');
+}
+
+// ── Copy to clipboard (rich HTML + plain text fallback) ──────────────────────
+
+async function copyRichText(plainText, htmlText) {
+  // Try rich copy first (preserves formatting when pasting into Slack)
+  if (window.ClipboardItem) {
+    try {
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          'text/plain': new Blob([plainText], { type: 'text/plain' }),
+          'text/html': new Blob([htmlText], { type: 'text/html' }),
+        })
+      ]);
+      return true;
+    } catch (err) {
+      console.warn('Rich copy failed, falling back to plain text', err);
+    }
+  }
+  // Fallback: plain text only
+  await navigator.clipboard.writeText(plainText);
+  return true;
 }
 
 // ── Render sync ups ──────────────────────────────────────────────────────────
@@ -1077,10 +1130,11 @@ function showToast(msg, type = '') {
 document.getElementById('btnCopy').addEventListener('click', async () => {
   const data = loadData();
   const slackText = buildSlackText(data);
+  const slackHTML = buildSlackHTML(data);
 
   try {
-    await navigator.clipboard.writeText(slackText);
-    showToast('Copied to clipboard!', 'success');
+    await copyRichText(slackText, slackHTML);
+    showToast('Copied! Paste directly into Slack.', 'success');
   } catch {
     showToast('Copy failed — check browser permissions', 'error');
     return;
