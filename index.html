@@ -824,10 +824,10 @@ function formatDateISO(d) {
 }
 
 function formatDateCopy(d) {
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
   const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
   const yy = String(d.getFullYear()).slice(2);
-  return mm + '/' + dd + '/' + yy;
+  return dd + '/' + mm + '/' + yy;
 }
 
 // ── Slack text builder ───────────────────────────────────────────────────────
@@ -835,25 +835,21 @@ function formatDateCopy(d) {
 function buildSlackText(data) {
   const lines = [];
 
-  lines.push('*' + formatDateCopy(new Date()) + '*');
+  lines.push(formatDateCopy(new Date()));
   lines.push('');
 
-  const taskProjects = data.projects.filter(p => p.tasks.length || p.name.trim());
-  if (taskProjects.length) {
-    lines.push('*Tasks*');
-    taskProjects.forEach(p => {
-      lines.push('');
-      lines.push('*' + (p.name || 'Untitled Project') + '*');
-      p.tasks.forEach(t => {
-        const text = t.text.trim() || '(empty task)';
-        lines.push(t.done ? '• ~' + text + '~' : '• ' + text);
-      });
+  const allTasks = data.projects.flatMap(p => p.tasks);
+  if (allTasks.length) {
+    lines.push('Tasks');
+    allTasks.forEach(t => {
+      const text = t.text.trim() || '(empty task)';
+      lines.push(t.done ? '• ~' + text + '~' : '• ' + text);
     });
   }
 
-  if (data.syncUps && data.syncUps.length) {
-    if (lines.length) lines.push('');
-    lines.push('*Sync ups*');
+  if (data.syncUps && data.syncUps.filter(s => s.trim()).length) {
+    lines.push('');
+    lines.push('Sync ups');
     data.syncUps.forEach(s => { if (s.trim()) lines.push('• ' + s.trim()); });
   }
 
@@ -867,22 +863,19 @@ function escapeHtml(str) {
 }
 
 function buildSlackHTML(data) {
-  let parts = ['<strong>' + formatDateCopy(new Date()) + '</strong>'];
+  let parts = [formatDateCopy(new Date())];
 
-  const taskProjects = data.projects.filter(p => p.tasks.length || p.name.trim());
-  if (taskProjects.length) {
+  const allTasks = data.projects.flatMap(p => p.tasks);
+  if (allTasks.length) {
     let block = '<strong>Tasks</strong>';
-    taskProjects.forEach(p => {
-      block += '<br><br><strong>' + escapeHtml(p.name || 'Untitled Project') + '</strong>';
-      p.tasks.forEach(t => {
-        const text = escapeHtml(t.text.trim() || '(empty task)');
-        block += '<br>• ' + (t.done ? '<s>' + text + '</s>' : text);
-      });
+    allTasks.forEach(t => {
+      const text = escapeHtml(t.text.trim() || '(empty task)');
+      block += '<br>• ' + (t.done ? '<s>' + text + '</s>' : text);
     });
     parts.push(block);
   }
 
-  if (data.syncUps && data.syncUps.length) {
+  if (data.syncUps && data.syncUps.filter(s => s.trim()).length) {
     let block = '<strong>Sync ups</strong>';
     data.syncUps.forEach(s => {
       if (s.trim()) block += '<br>• ' + escapeHtml(s.trim());
