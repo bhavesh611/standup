@@ -596,6 +596,15 @@
     </div>
     <div class="header-actions">
       <button class="btn btn-ghost" id="btnNewDay">New Day</button>
+      <button class="btn btn-ghost btn-icon settings-btn" id="btnShare" title="Share link" style="padding:7px 10px;">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+          <circle cx="12" cy="3" r="1.5"/>
+          <circle cx="12" cy="13" r="1.5"/>
+          <circle cx="3" cy="8" r="1.5"/>
+          <line x1="10.6" y1="3.8" x2="4.4" y2="7.2"/>
+          <line x1="10.6" y1="12.2" x2="4.4" y2="8.8"/>
+        </svg>
+      </button>
       <button class="btn btn-ghost btn-icon settings-btn" id="btnSettings" title="Settings" style="padding:7px 10px;">
         <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
           <circle cx="8" cy="8" r="2.5"/>
@@ -1265,6 +1274,22 @@ async function logToGoogleDocs(url, data, slackText) {
     console.error(err);
   }
 }
+
+// ── Share link ────────────────────────────────────────────────────────────────
+
+document.getElementById('btnShare').addEventListener('click', async () => {
+  const url = window.location.href;
+  if (url.startsWith('file://')) {
+    showToast('Open from GitHub Pages to share a link', 'error');
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(url);
+    showToast('Link copied! Open on any device.', 'success');
+  } catch {
+    showToast('Could not copy link', 'error');
+  }
+});
 
 // ── Modals ───────────────────────────────────────────────────────────────────
 
