@@ -330,6 +330,35 @@
   .toast.success { border-color: var(--accent); color: var(--accent-hover); }
   .toast.error { border-color: var(--danger); color: var(--danger); }
 
+  /* Sync indicator */
+  .sync-indicator {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 4px;
+    height: 14px;
+  }
+
+  .sync-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--text-muted);
+    flex-shrink: 0;
+    transition: background 0.3s;
+  }
+  .sync-dot.pending  { background: var(--sync-accent); opacity: 0.5; }
+  .sync-dot.syncing  { background: var(--sync-accent); animation: sync-pulse 1s ease-in-out infinite; }
+  .sync-dot.synced   { background: #5cb85c; }
+  .sync-dot.error    { background: var(--danger); }
+
+  @keyframes sync-pulse {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.25; }
+  }
+
   /* Modal */
   .modal-backdrop {
     position: fixed;
@@ -560,6 +589,10 @@
     <div class="header-left">
       <h1>Daily Standup</h1>
       <div class="date" id="headerDate"></div>
+      <div class="sync-indicator" id="syncIndicator" style="display:none">
+        <span class="sync-dot" id="syncDot"></span>
+        <span id="syncLabel"></span>
+      </div>
     </div>
     <div class="header-actions">
       <button class="btn btn-ghost" id="btnNewDay">New Day</button>
@@ -709,6 +742,67 @@ function loadData() {
 
 function saveData(data) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  if (getAppsScriptUrl()) scheduleSync();
+}
+
+// ── Cloud sync ────────────────────────────────────────────────────────────────
+
+let syncTimer = null;
+
+function setSyncUI(state, label) {
+  const indicator = document.getElementById('syncIndicator');
+  const dot = document.getElementById('syncDot');
+  const lbl = document.getElementById('syncLabel');
+  if (state === 'hidden') { indicator.style.display = 'none'; return; }
+  indicator.style.display = 'flex';
+  dot.className = 'sync-dot ' + state;
+  lbl.textContent = label;
+}
+
+async function loadFromCloud(url) {
+  setSyncUI('syncing', 'Loading…');
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const json = await res.json();
+    if (json.status === 'ok' && json.data) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(json.data));
+      render();
+      setSyncUI('synced', 'Synced');
+      setTimeout(() => setSyncUI('hidden'), 3000);
+    } else {
+      // Remote is empty — push local data up
+      syncNow();
+    }
+  } catch (err) {
+    setSyncUI('error', 'Sync failed');
+    console.error('Cloud load failed:', err);
+  }
+}
+
+function scheduleSync() {
+  clearTimeout(syncTimer);
+  setSyncUI('pending', 'Unsaved…');
+  syncTimer = setTimeout(syncNow, 1500);
+}
+
+async function syncNow() {
+  const url = getAppsScriptUrl();
+  if (!url) return;
+  setSyncUI('syncing', 'Syncing…');
+  try {
+    await fetch(url, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ action: 'sync', data: loadData() }),
+    });
+    setSyncUI('synced', 'Synced');
+    setTimeout(() => setSyncUI('hidden'), 3000);
+  } catch (err) {
+    setSyncUI('error', 'Sync failed');
+    console.error('Cloud sync failed:', err);
+  }
 }
 
 function getAppsScriptUrl() {
@@ -729,10 +823,20 @@ function formatDateISO(d) {
   return d.toISOString().slice(0, 10);
 }
 
+function formatDateCopy(d) {
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  const yy = String(d.getFullYear()).slice(2);
+  return mm + '/' + dd + '/' + yy;
+}
+
 // ── Slack text builder ───────────────────────────────────────────────────────
 
 function buildSlackText(data) {
   const lines = [];
+
+  lines.push('*' + formatDateCopy(new Date()) + '*');
+  lines.push('');
 
   const taskProjects = data.projects.filter(p => p.tasks.length || p.name.trim());
   if (taskProjects.length) {
@@ -763,7 +867,7 @@ function escapeHtml(str) {
 }
 
 function buildSlackHTML(data) {
-  let parts = [];
+  let parts = ['<strong>' + formatDateCopy(new Date()) + '</strong>'];
 
   const taskProjects = data.projects.filter(p => p.tasks.length || p.name.trim());
   if (taskProjects.length) {
@@ -1188,7 +1292,7 @@ document.getElementById('btnClosePreview').addEventListener('click', () => hideM
 document.getElementById('btnSkipUrl').addEventListener('click', () => hideModal('modalAppsScript'));
 document.getElementById('btnSaveUrl').addEventListener('click', () => {
   const val = document.getElementById('appsScriptUrlInput').value.trim();
-  if (val) { saveAppsScriptUrl(val); showToast('URL saved!', 'success'); }
+  if (val) { saveAppsScriptUrl(val); showToast('URL saved!', 'success'); loadFromCloud(val); }
   hideModal('modalAppsScript');
 });
 
@@ -1198,9 +1302,11 @@ document.getElementById('btnSettings').addEventListener('click', () => {
 });
 document.getElementById('btnCloseSettings').addEventListener('click', () => hideModal('modalSettings'));
 document.getElementById('btnSaveSettings').addEventListener('click', () => {
-  saveAppsScriptUrl(document.getElementById('settingsUrlInput').value.trim());
+  const val = document.getElementById('settingsUrlInput').value.trim();
+  saveAppsScriptUrl(val);
   showToast('Settings saved!', 'success');
   hideModal('modalSettings');
+  if (val) loadFromCloud(val);
 });
 
 document.getElementById('btnNewDay').addEventListener('click', () => showModal('modalNewDay'));
@@ -1252,7 +1358,8 @@ document.getElementById('btnAddProject').addEventListener('click', () => {
 document.getElementById('headerDate').textContent = formatDateLong(new Date());
 
 if (!localStorage.getItem(STORAGE_KEY)) {
-  saveData({
+  // Write default data directly so saveData doesn't trigger a sync before URL is known
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({
     syncUps: ['Team-Daily Standup'],
     projects: [
       {
@@ -1276,10 +1383,14 @@ if (!localStorage.getItem(STORAGE_KEY)) {
         tasks: [{ id: genId(), text: 'Document task list and start user journey', done: false }],
       },
     ],
-  });
+  }));
 }
 
 render();
+
+// Pull latest data from cloud on every page load
+const _initUrl = getAppsScriptUrl();
+if (_initUrl) loadFromCloud(_initUrl);
 </script>
 </body>
 </html>

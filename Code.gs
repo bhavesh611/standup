@@ -1,12 +1,34 @@
 // ── Config ────────────────────────────────────────────────────────────────────
 // Set this to your Google Doc ID (from the URL: /d/<DOC_ID>/edit)
-const DOC_ID = 'YOUR_GOOGLE_DOC_ID_HERE';
+const DOC_ID = '17UyU4ZK5FvtVvZBQ9cMk9TAjXEKbkDF1JqodvYHyTtY';
+const SYNC_KEY = 'standup_data';
 
-// ── Entry point ───────────────────────────────────────────────────────────────
+// ── Load endpoint (GET) — returns stored standup data for cross-device sync ───
+function doGet(e) {
+  const props = PropertiesService.getScriptProperties();
+  const raw = props.getProperty(SYNC_KEY);
+  const data = raw ? JSON.parse(raw) : null;
+  return ContentService
+    .createTextOutput(JSON.stringify({ status: 'ok', data: data }))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+// ── Entry point (POST) ────────────────────────────────────────────────────────
 function doPost(e) {
   try {
     // Body is sent as text/plain from the webapp (required for no-cors mode)
     const payload = JSON.parse(e.postData.contents);
+
+    if (payload.action === 'sync') {
+      // Store standup data for cross-device sync
+      const props = PropertiesService.getScriptProperties();
+      props.setProperty(SYNC_KEY, JSON.stringify(payload.data));
+      return ContentService
+        .createTextOutput(JSON.stringify({ status: 'ok' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // Default: log to Google Doc
     appendStandup(payload.date, payload.syncUps || [], payload.projects || []);
     return ContentService
       .createTextOutput(JSON.stringify({ status: 'ok' }))
