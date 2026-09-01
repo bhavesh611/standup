@@ -359,6 +359,30 @@
     50%       { opacity: 0.25; }
   }
 
+  /* Priority / status select */
+  .priority-select {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text-muted);
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 6px;
+    cursor: pointer;
+    outline: none;
+    appearance: none;
+    -webkit-appearance: none;
+    flex-shrink: 0;
+    transition: border-color 0.15s, color 0.15s;
+  }
+  .priority-select:hover { border-color: var(--accent); }
+  .priority-select[data-p="P0"] { color: #e05c5c; border-color: #e05c5c; }
+  .priority-select[data-p="P1"] { color: #e08c3c; border-color: #e08c3c; }
+  .priority-select[data-p="P2"] { color: #c9b84c; border-color: #c9b84c; }
+  .priority-select[data-p="P3"] { color: #5c8ce0; border-color: #5c8ce0; }
+  .priority-select[data-p="P4"] { color: #7c6af7; border-color: #7c6af7; }
+  .priority-select[data-p="on-hold"] { color: var(--text-muted); border-color: var(--border); font-style: italic; }
+
   /* Modal */
   .modal-backdrop {
     position: fixed;
@@ -841,18 +865,29 @@ function formatDateCopy(d) {
 
 // ── Slack text builder ───────────────────────────────────────────────────────
 
+function projectLabel(p) {
+  const name = p.name || 'Untitled Project';
+  if (p.priority === 'on-hold') return name + ' (On Hold)';
+  if (p.priority) return name + ' (' + p.priority + ')';
+  return name;
+}
+
 function buildSlackText(data) {
   const lines = [];
 
   lines.push(formatDateCopy(new Date()));
   lines.push('');
 
-  const allTasks = data.projects.flatMap(p => p.tasks);
-  if (allTasks.length) {
+  const taskProjects = data.projects.filter(p => p.tasks.length || p.name.trim());
+  if (taskProjects.length) {
     lines.push('Tasks');
-    allTasks.forEach(t => {
-      const text = t.text.trim() || '(empty task)';
-      lines.push(t.done ? '• ~' + text + '~' : '• ' + text);
+    taskProjects.forEach(p => {
+      lines.push('');
+      lines.push(projectLabel(p));
+      p.tasks.forEach(t => {
+        const text = t.text.trim() || '(empty task)';
+        lines.push(t.done ? '• ~' + text + '~' : '• ' + text);
+      });
     });
   }
 
@@ -874,12 +909,15 @@ function escapeHtml(str) {
 function buildSlackHTML(data) {
   let parts = [formatDateCopy(new Date())];
 
-  const allTasks = data.projects.flatMap(p => p.tasks);
-  if (allTasks.length) {
+  const taskProjects = data.projects.filter(p => p.tasks.length || p.name.trim());
+  if (taskProjects.length) {
     let block = '<strong>Tasks</strong>';
-    allTasks.forEach(t => {
-      const text = escapeHtml(t.text.trim() || '(empty task)');
-      block += '<br>• ' + (t.done ? '<s>' + text + '</s>' : text);
+    taskProjects.forEach(p => {
+      block += '<br><br><strong>' + escapeHtml(projectLabel(p)) + '</strong>';
+      p.tasks.forEach(t => {
+        const text = escapeHtml(t.text.trim() || '(empty task)');
+        block += '<br>• ' + (t.done ? '<s>' + text + '</s>' : text);
+      });
     });
     parts.push(block);
   }
@@ -1045,6 +1083,24 @@ function renderProjects() {
       saveData(d);
     });
 
+    const prioritySelect = document.createElement('select');
+    prioritySelect.className = 'priority-select';
+    prioritySelect.title = 'Set priority or status';
+    [['', '—'], ['P0','P0'], ['P1','P1'], ['P2','P2'], ['P3','P3'], ['P4','P4'], ['on-hold','On Hold']].forEach(([val, label]) => {
+      const opt = document.createElement('option');
+      opt.value = val;
+      opt.textContent = label;
+      if ((project.priority || '') === val) opt.selected = true;
+      prioritySelect.appendChild(opt);
+    });
+    prioritySelect.dataset.p = project.priority || '';
+    prioritySelect.addEventListener('change', () => {
+      const d = loadData();
+      d.projects[pIdx].priority = prioritySelect.value;
+      saveData(d);
+      prioritySelect.dataset.p = prioritySelect.value;
+    });
+
     const deleteBtn = document.createElement('button');
     deleteBtn.className = 'btn-icon';
     deleteBtn.title = 'Delete project';
@@ -1056,7 +1112,7 @@ function renderProjects() {
       renderProjects();
     });
 
-    header.append(handle, nameInput, deleteBtn);
+    header.append(handle, nameInput, prioritySelect, deleteBtn);
 
     // Tasks
     const tasksDiv = document.createElement('div');
